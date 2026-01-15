@@ -120,7 +120,7 @@ jobs:
 
             # Останавливаем старые контейнеры
             echo "⏹️ Stopping old containers..."
-            docker compose down -v || true
+            docker compose down || true
             
             # Запускаем контейнеры
             echo "🐳 Starting containers..."
