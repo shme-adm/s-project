@@ -62,9 +62,15 @@ jobs:
             if [ ! -d "$PROJECT_DIR/.git" ]; then
                 echo "📥 First deployment detected - cloning repository..."
                 
+                # Сохраняем .env если он существует
+                if [ -f "$PROJECT_DIR/.env" ]; then
+                    cp "$PROJECT_DIR/.env" /tmp/.env.backup
+                    echo "💾 .env backed up"
+                fi
+                
                 # Очищаем директорию, если она существует
                 if [ -d "$PROJECT_DIR" ]; then
-                    sudo rm -rf "$PROJECT_DIR"
+                    rm -rf "$PROJECT_DIR"
                 fi
                 
                 # Создаем и клонируем репозиторий
@@ -72,6 +78,13 @@ jobs:
                 cd "$PROJECT_DIR"
                 git clone "$REPO_URL" .
                 echo "✅ Repository cloned successfully"
+                
+                # Восстанавливаем .env если мы его сохранили
+                if [ -f /tmp/.env.backup ]; then
+                    cp /tmp/.env.backup "$PROJECT_DIR/.env"
+                    rm /tmp/.env.backup
+                    echo "✅ .env restored"
+                fi
             else
                 echo "✅ Repository exists - updating..."
                 cd "$PROJECT_DIR"
@@ -96,7 +109,7 @@ jobs:
                 echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             fi
             
-            # Создаем необходимые директории
+            # Создаем необходимые директории проекта
             mkdir -p logs
             mkdir -p client/node_modules
             mkdir -p server/node_modules
