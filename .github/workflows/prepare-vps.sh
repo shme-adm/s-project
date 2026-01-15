@@ -28,6 +28,12 @@ echo "📦 Обновление системы..."
 sudo apt-get update
 sudo apt-get upgrade -y
 
+echo "📚 Установка Git..."
+sudo apt-get install -y git
+
+echo "🌐 Установка Curl..."
+sudo apt-get install -y curl
+
 echo "🐳 Установка Docker..."
 if ! command -v docker &> /dev/null; then
     curl -fsSL https://get.docker.com -o get-docker.sh
@@ -46,9 +52,6 @@ if ! command -v docker-compose &> /dev/null; then
 else
     echo "✅ Docker Compose уже установлен"
 fi
-
-echo "📚 Установка Git..."
-sudo apt-get install -y git
 
 echo "👤 Создание пользователя deploy..."
 if ! id -u deploy > /dev/null 2>&1; then
