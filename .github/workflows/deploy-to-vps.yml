@@ -55,46 +55,94 @@ jobs:
             
             echo "🚀 Starting deployment..."
             
-            # Переходим в директорию проекта
-            cd /home/${{ secrets.VPS_USER }}/portal-s || cd /opt/portal-s
+            PROJECT_DIR="/opt/portal-s"
+            REPO_URL="${{ github.server_url }}/${{ github.repository }}.git"
             
-            # Получаем последние изменения
-            git fetch origin main
-            git checkout main
-            git pull origin main
+            # Проверяем, существует ли репозиторий
+            if [ ! -d "$PROJECT_DIR/.git" ]; then
+                echo "📥 First deployment detected - cloning repository..."
+                
+                # Очищаем директорию, если она существует
+                if [ -d "$PROJECT_DIR" ]; then
+                    sudo rm -rf "$PROJECT_DIR"
+                fi
+                
+                # Создаем и клонируем репозиторий
+                mkdir -p "$PROJECT_DIR"
+                cd "$PROJECT_DIR"
+                git clone "$REPO_URL" .
+                echo "✅ Repository cloned successfully"
+            else
+                echo "✅ Repository exists - updating..."
+                cd "$PROJECT_DIR"
+                git fetch origin main
+                git checkout main
+                git pull origin main
+            fi
+            
+            # Проверяем существование .env файла
+            if [ ! -f ".env" ]; then
+                echo "❌ ERROR: .env file not found in $PROJECT_DIR"
+                echo "⚠️ First deployment requires .env file to be placed on server"
+                exit 1
+            fi
+            
+            echo "✅ .env file found"
             
             # Логируемся в container registry
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            if [ ! -z "${{ secrets.GHCR_TOKEN }}" ]; then
+                echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            else
+                echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            fi
             
-            # Обновляем .env файл на сервере (если требуется)
-            # Убедитесь, что .env существует на сервере с нужными переменными
+            # Создаем необходимые директории
+            mkdir -p logs
+            mkdir -p client/node_modules
+            mkdir -p server/node_modules
             
             # Останавливаем старые контейнеры
             echo "⏹️ Stopping old containers..."
-            docker compose down || true
+            docker compose down -v || true
             
-            # Вытягиваем новый образ
-            echo "📦 Pulling new Docker image..."
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            # Очищаем неиспользуемые ресурсы
+            echo "🧹 Pruning Docker resources..."
+            docker system prune -af --volumes || true
             
-            # Запускаем новые контейнеры
-            echo "🐳 Starting new containers..."
-            docker compose up -d --pull=always
+            # Вытягиваем образы
+            echo "📦 Pulling images..."
+            docker compose pull || true
+            
+            # Запускаем контейнеры
+            echo "🐳 Starting containers..."
+            docker compose up -d --build
             
             # Проверяем здоровье сервиса
-            echo "🔍 Checking service health..."
-            sleep 10
+            echo "🔍 Checking service health (max 30 attempts)..."
+            MAX_ATTEMPTS=30
+            ATTEMPT=1
             
-            # Проверяем доступность API
-            if curl -f http://localhost:3000/api/health > /dev/null 2>&1; then
-              echo "✅ API is healthy"
-            else
-              echo "⚠️ API health check failed, but containers are running"
-            fi
+            while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+              if curl -f http://localhost:3000/api/health > /dev/null 2>&1; then
+                echo "✅ API is healthy"
+                break
+              fi
+              
+              if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+                echo "⚠️ API health check failed after $MAX_ATTEMPTS attempts"
+                echo "📊 Container status:"
+                docker compose ps
+                break
+              fi
+              
+              echo "⏳ Attempt $ATTEMPT/$MAX_ATTEMPTS..."
+              sleep 2
+              ATTEMPT=$((ATTEMPT + 1))
+            done
             
-            # Очищаем неиспользуемые Docker ресурсы
-            echo "🧹 Cleaning up Docker resources..."
-            docker system prune -f
+            echo ""
+            echo "📊 Container status:"
+            docker compose ps
             
             echo "✅ Deployment completed successfully!"
 
