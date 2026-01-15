@@ -1,0 +1,63 @@
+name: Health Check
+
+on:
+  schedule:
+    # Запускается каждый час
+    - cron: '0 * * * *'
+  workflow_dispatch:  # Можно запустить вручную
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Check API Health
+        run: |
+          echo "🔍 Checking API health..."
+          
+          API_URL="${{ secrets.VPS_DOMAIN || 'localhost:3000' }}"
+          
+          # Пытаемся подключиться к API
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" http://$API_URL/api/health || echo "000")
+          
+          if [ "$RESPONSE" = "200" ]; then
+            echo "✅ API is healthy (HTTP $RESPONSE)"
+            exit 0
+          else
+            echo "⚠️ API returned HTTP $RESPONSE"
+            exit 1
+          fi
+
+      - name: Send Slack notification on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK }}
+          payload: |
+            {
+              "text": "⚠️ Portal S Health Check Failed",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Portal S Health Check Failed*\n🔴 API is not responding\nCheck deployment status"
+                  }
+                }
+              ]
+            }
+
+      - name: SSH check services on VPS
+        if: failure()
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            echo "🔍 Checking services..."
+            docker ps -a
+            echo ""
+            echo "📋 Recent logs:"
+            docker compose logs backend | tail -20

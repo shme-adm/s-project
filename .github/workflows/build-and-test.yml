@@ -1,0 +1,41 @@
+name: Build and Test
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - develop
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm run install:all
+
+      - name: Lint client
+        run: cd client && npm run lint || true
+
+      - name: Build client
+        run: cd client && npm run build
+
+      - name: Build Docker image (dry run)
+        run: |
+          docker build -t portal-s:test .
+
+      - name: Check Docker image
+        run: |
+          docker images | grep portal-s:test
+          echo "✅ Docker image built successfully"

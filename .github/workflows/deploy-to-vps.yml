@@ -1,0 +1,111 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:  # Также можно запустить вручную
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest,${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            set -e
+            
+            echo "🚀 Starting deployment..."
+            
+            # Переходим в директорию проекта
+            cd /home/${{ secrets.VPS_USER }}/portal-s || cd /opt/portal-s
+            
+            # Получаем последние изменения
+            git fetch origin main
+            git checkout main
+            git pull origin main
+            
+            # Логируемся в container registry
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            
+            # Обновляем .env файл на сервере (если требуется)
+            # Убедитесь, что .env существует на сервере с нужными переменными
+            
+            # Останавливаем старые контейнеры
+            echo "⏹️ Stopping old containers..."
+            docker compose down || true
+            
+            # Вытягиваем новый образ
+            echo "📦 Pulling new Docker image..."
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            
+            # Запускаем новые контейнеры
+            echo "🐳 Starting new containers..."
+            docker compose up -d --pull=always
+            
+            # Проверяем здоровье сервиса
+            echo "🔍 Checking service health..."
+            sleep 10
+            
+            # Проверяем доступность API
+            if curl -f http://localhost:3000/api/health > /dev/null 2>&1; then
+              echo "✅ API is healthy"
+            else
+              echo "⚠️ API health check failed, but containers are running"
+            fi
+            
+            # Очищаем неиспользуемые Docker ресурсы
+            echo "🧹 Cleaning up Docker resources..."
+            docker system prune -f
+            
+            echo "✅ Deployment completed successfully!"
+
+      - name: Notify on success
+        if: success()
+        run: |
+          echo "✅ Deployment successful!"
+          echo "🌐 Application deployed at: https://${{ secrets.VPS_DOMAIN }}"
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Deployment failed!"
+          echo "Check GitHub Actions logs for details"

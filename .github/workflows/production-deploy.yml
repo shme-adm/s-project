@@ -1,0 +1,123 @@
+name: Deploy to Production
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        type: choice
+        options:
+          - production
+          - staging
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'production' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script_stop_on_error: true
+          script: |
+            set -e
+            
+            # Определяем переменные окружения на основе environment
+            if [ "${{ github.event.inputs.environment }}" = "staging" ]; then
+              PROJECT_DIR="/opt/portal-s-staging"
+              COMPOSE_FILE="docker-compose.staging.yml"
+            else
+              PROJECT_DIR="/opt/portal-s"
+              COMPOSE_FILE="docker-compose.yml"
+            fi
+            
+            echo "🚀 Deploying to ${{ github.event.inputs.environment || 'production' }}..."
+            cd $PROJECT_DIR
+            
+            # Обновляем код
+            git fetch origin
+            git checkout ${{ github.ref_name }}
+            git pull origin ${{ github.ref_name }}
+            
+            # Логируемся в registry
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            
+            # Запускаем миграции если требуется
+            if [ -f "./scripts/migrate.sh" ]; then
+              echo "🔄 Running migrations..."
+              bash ./scripts/migrate.sh
+            fi
+            
+            # Проверяем и обновляем .env
+            if [ ! -f ".env" ]; then
+              echo "⚠️ .env file not found, creating from .env.example"
+              cp .env.example .env 2>/dev/null || echo "No .env.example found"
+            fi
+            
+            # Останавливаем старые контейнеры
+            echo "⏹️ Stopping old containers..."
+            docker compose -f $COMPOSE_FILE down --remove-orphans || true
+            
+            # Вытягиваем новый образ
+            echo "📦 Pulling Docker image..."
+            docker pull ghcr.io/${{ github.repository }}:${{ github.sha }}
+            
+            # Запускаем контейнеры с новым образом
+            echo "🐳 Starting containers..."
+            docker compose -f $COMPOSE_FILE up -d --pull=always
+            
+            # Проверяем здоровье
+            echo "🔍 Waiting for services to be healthy..."
+            sleep 15
+            
+            MAX_ATTEMPTS=30
+            ATTEMPT=0
+            while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+              if curl -f http://localhost:3000/api/health > /dev/null 2>&1; then
+                echo "✅ Services are healthy"
+                break
+              fi
+              ATTEMPT=$((ATTEMPT + 1))
+              if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+                echo "⚠️ Health check timeout, but containers are running"
+                docker compose logs backend | tail -20
+                break
+              fi
+              echo "Waiting for services... ($ATTEMPT/$MAX_ATTEMPTS)"
+              sleep 2
+            done
+            
+            # Очищаем старые ресурсы
+            docker system prune -f --volumes
+            
+            echo "✅ Deployment completed!"
+            
+      - name: Send Slack notification
+        if: always()
+        uses: slackapi/slack-github-action@v1
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK }}
+          payload: |
+            {
+              "text": "Portal S Deployment ${{ job.status }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Portal S Deployment*\nEnvironment: ${{ github.event.inputs.environment || 'production' }}\nStatus: ${{ job.status }}\nCommit: ${{ github.sha }}"
+                  }
+                }
+              ]
+            }

@@ -174,8 +174,41 @@ npm run test:webhook
 - npm или yarn
 - tuna (для публичного доступа)
 
+## 🚀 Автоматизированное развертывание (GitHub Actions)
+
+Проект поддерживает автоматическое развертывание через GitHub Actions.
+
+### Быстрый старт deployment:
+
+1. **Подготовьте VPS**:
+   ```bash
+   bash .github/workflows/prepare-vps.sh deploy@your-vps-ip
+   ```
+
+2. **Настройте GitHub Secrets**:
+   ```bash
+   bash .github/workflows/setup-deployment.sh
+   ```
+
+3. **Отправьте код**:
+   ```bash
+   git push origin main
+   # GitHub Actions автоматически развернет приложение
+   ```
+
+📖 **Подробная документация**: [docs/deployment/DEPLOYMENT.md](docs/deployment/DEPLOYMENT.md)
+
+### Доступные workflows:
+
+- **Deploy to VPS** - Автоматическое развертывание при push в main
+- **Build and Test** - Проверка сборки при PR
+- **Production Deploy** - Manual production deployment с выбором environment
+
 ## 📚 Документация
 
+- [Deployment Guide](docs/deployment/DEPLOYMENT.md) - Подробное руководство по развертыванию
+- [Deployment Index](docs/deployment/INDEX.md) - Индекс всей deployment документации
+- [GitHub Actions README](.github/workflows/README.md) - Документация workflows
 - [Tuna Tunnels](TUNA_README.md) - Подробная документация по туннелям
 - [Стиль кода](docs/STYLE_GUIDE.md) - Руководство по стилю кода
 - [Контекст проекта](docs/PROJECT_CONTEXT.md) - Описание проекта
