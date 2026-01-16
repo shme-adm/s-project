@@ -1,9 +1,9 @@
 name: Health Check
 
 on:
-  schedule:
-    # Запускается каждый час
-    - cron: '0 * * * *'
+  #schedule:
+  #  # Запускается каждый час
+  #  - cron: '0 * * * *'
   workflow_dispatch:  # Можно запустить вручную
 
 jobs:
@@ -27,25 +27,6 @@ jobs:
             echo "⚠️ API returned HTTP $RESPONSE"
             exit 1
           fi
-
-      - name: Send Slack notification on failure
-        if: failure()
-        uses: slackapi/slack-github-action@v1
-        with:
-          webhook-url: ${{ secrets.SLACK_WEBHOOK }}
-          payload: |
-            {
-              "text": "⚠️ Portal S Health Check Failed",
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "*Portal S Health Check Failed*\n🔴 API is not responding\nCheck deployment status"
-                  }
-                }
-              ]
-            }
 
       - name: SSH check services on VPS
         if: failure()

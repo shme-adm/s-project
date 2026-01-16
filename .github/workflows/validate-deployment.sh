@@ -117,9 +117,9 @@ echo ""
 echo "📚 Checking documentation..."
 
 docs=(
-    "DEPLOYMENT.md"
+    "docs/deployment/DEPLOYMENT.md"
     ".github/workflows/README.md"
-    ".env.example"
+    "example.env"
 )
 
 for doc in "${docs[@]}"; do

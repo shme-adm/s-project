@@ -31,20 +31,6 @@
 3. Собирает фронтенд (Vite)
 4. Проверяет сборку Docker образа
 
-**Время**: 2-5 минут
-
-### 3. Production Deploy
-**File**: `.github/workflows/production-deploy.yml`  
-**Trigger**: Release / Manual workflow dispatch
-
-Для контролируемого production deployment с выбором environment.
-
-**Что делает**:
-1. Позволяет выбрать staging или production
-2. Запускает миграции БД (если нужны)
-3. Развертывает с проверкой здоровья
-4. Отправляет уведомление в Slack
-
 **Время**: 5-15 минут
 
 ### 4. Health Check
@@ -56,7 +42,6 @@
 **Что делает**:
 1. Проверяет API доступность
 2. SSH на сервер и проверяет контейнеры
-3. Отправляет алерт в Slack при failure
 
 **Время**: < 1 минуты
 
@@ -73,12 +58,6 @@
 | `VPS_SSH_KEY` | Приватный SSH ключ | `-----BEGIN OPENSSH PRIVATE KEY-----...` |
 | `VPS_PORT` | SSH порт (опционально) | `22` |
 | `VPS_DOMAIN` | Домен приложения | `surius.ru.tuna.am` |
-
-### Optional Secrets
-
-| Secret | Description |
-|--------|-------------|
-| `SLACK_WEBHOOK` | Slack webhook для уведомлений |
 
 ---
 
@@ -218,7 +197,6 @@ All workflow files are in `.github/workflows/`:
 
 4. **Monitoring** → Hourly Health Check
    - API availability check
-   - Slack notifications
 
 ---
 

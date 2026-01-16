@@ -249,7 +249,6 @@ docker compose exec nginx cat /etc/nginx/nginx.conf | grep upstream
 
 2. **Настройте мониторинг**:
    - Добавьте uptime monitoring (UptimeRobot, Pingdom)
-   - Настройте Slack notifications в production-deploy.yml
 
 3. **Резервные копии**:
    - Настройте автоматический backup MongoDB

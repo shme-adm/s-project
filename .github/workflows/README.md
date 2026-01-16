@@ -39,14 +39,6 @@ git push origin main
   - Собирает клиент (Vite)
   - Проверяет сборку Docker образа
 
-### 3. `production-deploy.yml` - Production развертывание
-- **Триггер**: Publication релиза или ручной запуск с выбором environment
-- **Что делает**:
-  - Определяет, в какой environment развертывать
-  - Запускает миграции БД (если нужны)
-  - Развертывает с проверкой здоровья
-  - Отправляет уведомление в Slack
-
 ## Секреты GitHub (Settings > Secrets and variables > Actions)
 
 Требуемые секреты для развертывания:
@@ -58,7 +50,6 @@ git push origin main
 | `VPS_SSH_KEY` | Приватный SSH ключ (содержимое файла) | `-----BEGIN OPENSSH PRIVATE KEY-----...` |
 | `VPS_PORT` | Порт SSH (опционально, по умолчанию 22) | `2222` |
 | `VPS_DOMAIN` | Домен приложения (для уведомлений) | `surius.ru.tuna.am` |
-| `SLACK_WEBHOOK` | Webhook для Slack уведомлений (опционально) | `https://hooks.slack.com/...` |
 
 ## Как установить SSH ключ
 
@@ -91,7 +82,7 @@ sudo chmod +x /usr/local/bin/docker-compose
 
 # 2. Установить Git
 sudo apt-get update
-sudo apt-get install -y git
+sudo apt-get install -y git curl
 
 # 3. Создать пользователя для deployment (опционально)
 sudo useradd -m -s /bin/bash deploy
